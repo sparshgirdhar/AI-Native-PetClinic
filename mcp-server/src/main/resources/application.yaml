@@ -1,0 +1,22 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: mcp-server
+
+  ai:
+    mcp:
+      server:
+        name: petclinic-mcp-server
+        version: 0.0.1
+        type: SYNC
+        protocol: STREAMABLE
+        stdio: false
+        streamable-http:
+          mcp-endpoint: /mcp
+        annotation-scanner:
+          enabled: true
+
+petclinic:
+  base-url: http://localhost:8080

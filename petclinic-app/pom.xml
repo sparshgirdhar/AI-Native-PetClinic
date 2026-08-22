@@ -9,10 +9,10 @@
   </parent>
 
   <groupId>org.springframework.samples</groupId>
-  <artifactId>spring-petclinic</artifactId>
+  <artifactId>petclinic-app</artifactId>
   <version>4.0.0-SNAPSHOT</version>
 
-  <name>petclinic</name>
+  <name>petclinic-app</name>
 
   <properties>
     <!-- Generic properties -->
