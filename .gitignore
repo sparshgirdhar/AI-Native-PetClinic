@@ -46,3 +46,9 @@ out/
 _site/
 *.css
 !petclinic.css
+
+# Python (agent-pipeline)
+__pycache__/
+*.pyc
+.venv/
+.env
