@@ -1,0 +1,14 @@
+pyproject.toml
+src/agent_pipeline/agent.py
+src/agent_pipeline/app_gradio.py
+src/agent_pipeline/cli.py
+src/agent_pipeline.egg-info/PKG-INFO
+src/agent_pipeline.egg-info/SOURCES.txt
+src/agent_pipeline.egg-info/dependency_links.txt
+src/agent_pipeline.egg-info/requires.txt
+src/agent_pipeline.egg-info/top_level.txt
+src/agent_pipeline/sdlc/__init__.py
+src/agent_pipeline/sdlc/github_client.py
+src/agent_pipeline/sdlc/run_sdlc.py
+src/agent_pipeline/sdlc/schemas.py
+src/agent_pipeline/sdlc/spec_agent.py
