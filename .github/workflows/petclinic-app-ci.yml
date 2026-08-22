@@ -1,0 +1,35 @@
+name: petclinic-app CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'petclinic-app/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'petclinic-app/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: petclinic-app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Make mvnw executable
+        run: chmod +x ./mvnw
+
+      - name: Build and test
+        run: ./mvnw clean verify
