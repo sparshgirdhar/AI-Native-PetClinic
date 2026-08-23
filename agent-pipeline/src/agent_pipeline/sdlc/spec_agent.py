@@ -39,6 +39,28 @@ since Spring appends @GetMapping paths onto it and cannot escape it:
   on the method): read-only pet type list endpoint
 - ApiExceptionHandler.java (@RestControllerAdvice, not a controller): shared 400/404 error
   handling for all of the above — never a target_file for a new endpoint
+
+Also available (petclinic-app/src/main/java/.../owner/) — core JPA domain entities, NOT
+REST controllers. Only propose one of these as a target_file when the change genuinely
+requires it (e.g. a JPA mapping/cascade behavior change) — never for adding a new
+endpoint, which always belongs in one of the api/ files above instead:
+- Owner.java: the Owner JPA entity, including its @OneToMany pets collection mapping
+- Pet.java: the Pet JPA entity, including its @OneToMany visits collection mapping
+- Visit.java: the Visit JPA entity
+- PetType.java: the PetType JPA entity
+
+IMPORTANT domain gotcha: Owner.pets is mapped with cascade = CascadeType.ALL but
+WITHOUT orphanRemoval = true. This means removing a Pet from Owner.getPets() and
+saving does NOT delete it from the database — it only disassociates it (sets its
+owner_id to NULL), leaving an orphaned row behind. If an issue asks to actually
+DELETE a pet (not just remove/hide it), you MUST include Owner.java in target_files
+alongside the controller file, to add orphanRemoval = true to that mapping — a
+controller-only change will compile and return success but silently fail to delete
+anything.
+
+Caution: domain entity changes have a much wider blast radius than a controller change —
+they affect every endpoint that touches that entity, not just one. Prefer the smallest
+possible change (e.g. adding a single annotation attribute) over restructuring.
 """
 
 ROUTING_RULE = """

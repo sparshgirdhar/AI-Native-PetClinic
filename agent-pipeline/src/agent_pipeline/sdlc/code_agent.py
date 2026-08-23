@@ -13,12 +13,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 
-from agent_pipeline.sdlc.schemas import ChangeSpec
+from agent_pipeline.sdlc.schemas import ALLOWED_TARGET_FILES, DOMAIN_FILES, ChangeSpec
 
 load_dotenv()
 
 MODEL_NAME = os.getenv("MODEL_NAME", "openai:gpt-4.1-mini")
-API_PACKAGE_RELATIVE = "src/main/java/org/springframework/samples/petclinic/api"
+JAVA_PACKAGE_ROOT = "src/main/java/org/springframework/samples/petclinic"
 
 CODE_GEN_PROMPT_EXISTING = """You are a senior Java/Spring Boot engineer making a small, \
 precise change to an existing file.
@@ -76,8 +76,15 @@ commentary before or after.
 """
 
 
-def _api_dir(local_repo_path: Path) -> Path:
-	return local_repo_path / API_PACKAGE_RELATIVE
+def _resolve_path(filename: str, local_repo_path: Path) -> Path:
+	"""
+	Resolves a file's full path. Known existing files use their entry in
+	ALLOWED_TARGET_FILES (API files and domain entities live in different packages).
+	Unrecognized filenames are treated as new files — these always go in api/, per
+	CODE_GEN_PROMPT_NEW's stated assumption; new domain files are not supported.
+	"""
+	sub_package = ALLOWED_TARGET_FILES.get(filename, "api")
+	return local_repo_path / JAVA_PACKAGE_ROOT / sub_package / filename
 
 
 def _strip_fences(text: str) -> str:
@@ -107,7 +114,7 @@ async def _generate_one(
 			reason=reason,
 		)
 	else:
-		current_path = _api_dir(local_repo_path) / filename
+		current_path = _resolve_path(filename, local_repo_path)
 		current_content = current_path.read_text(encoding="utf-8")
 		prompt = CODE_GEN_PROMPT_EXISTING.format(
 			description=spec.description,
@@ -115,6 +122,14 @@ async def _generate_one(
 			filename=filename,
 			current_content=current_content,
 		)
+		if filename in DOMAIN_FILES:
+			prompt += (
+				"\n\nThis is a core domain entity used throughout the application. "
+				"Make the SMALLEST possible change that satisfies the acceptance "
+				"criteria — prefer adding a single annotation attribute over "
+				"restructuring the class. Do not remove or rename any existing "
+				"field, getter, or setter."
+			)
 
 	response = await model.ainvoke(prompt)
 	return _strip_fences(response.content)
@@ -138,16 +153,15 @@ async def generate_all_files(spec: ChangeSpec, local_repo_path: Path) -> dict[st
 
 def read_current_content(filename: str, local_repo_path: Path) -> str:
 	"""Empty string for new files (nothing to diff against)."""
-	path = _api_dir(local_repo_path) / filename
+	path = _resolve_path(filename, local_repo_path)
 	return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
 def write_files(file_contents: dict[str, str], local_repo_path: Path) -> list[Path]:
 	"""Writes generated content to disk. Returns the list of paths written."""
-	api_dir = _api_dir(local_repo_path)
 	written = []
 	for filename, content in file_contents.items():
-		path = api_dir / filename
+		path = _resolve_path(filename, local_repo_path)
 		path.write_text(content, encoding="utf-8")
 		written.append(path)
 	return written

@@ -7,16 +7,27 @@ to import this same ChangeSpec type later, once that stage is built.
 
 from pydantic import BaseModel, Field
 
-# The only files the Code Agent is ever allowed to touch. Deliberately narrow —
-# this is the "change budget" guardrail: the Spec Agent must pick from this menu
-# rather than freely deciding what the codebase contains.
-ALLOWED_TARGET_FILES = [
-	"OwnerRestController.java",
-	"PetRestController.java",
-	"VisitRestController.java",
-	"PetTypeRestController.java",
-	"ApiExceptionHandler.java",
-]
+# The only files the Code Agent is ever allowed to touch, mapped to their relative
+# path from petclinic-app/src/main/java/org/springframework/samples/petclinic/.
+# Deliberately still a fixed, known menu (not open repo exploration) — just widened
+# from API-only to also include the core domain entities, since some changes
+# (e.g. JPA cascade behavior) genuinely can't be implemented at the API layer alone.
+ALLOWED_TARGET_FILES: dict[str, str] = {
+	"OwnerRestController.java": "api",
+	"PetRestController.java": "api",
+	"VisitRestController.java": "api",
+	"PetTypeRestController.java": "api",
+	"ApiExceptionHandler.java": "api",
+	"Owner.java": "owner",
+	"Pet.java": "owner",
+	"Visit.java": "owner",
+	"PetType.java": "owner",
+}
+
+# Domain entities are higher blast-radius than a single REST controller — a change
+# here affects every endpoint that touches that entity, not just one. Flagged
+# separately so prompts can ask for extra caution on these specifically.
+DOMAIN_FILES = {"Owner.java", "Pet.java", "Visit.java", "PetType.java"}
 
 MAX_EXISTING_FILES = 3
 MAX_NEW_FILES = 1
@@ -34,7 +45,7 @@ class ChangeSpec(BaseModel):
 	issue_title: str
 
 	target_files: list[str] = Field(
-		description=f"Existing files to modify. Must be a subset of {ALLOWED_TARGET_FILES}. "
+		description=f"Existing files to modify. Must be a subset of {list(ALLOWED_TARGET_FILES.keys())}. "
 		f"Maximum {MAX_EXISTING_FILES} files."
 	)
 	new_files: list[NewFile] = Field(
