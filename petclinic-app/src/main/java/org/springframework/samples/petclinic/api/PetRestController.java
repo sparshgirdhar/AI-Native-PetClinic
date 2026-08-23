@@ -77,4 +77,21 @@ public class PetRestController {
 		return ResponseEntity.ok(existing);
 	}
 
+	/** DELETE /api/owners/{ownerId}/pets/{petId} */
+	@DeleteMapping("/{petId}")
+	public ResponseEntity<Void> deletePet(@PathVariable int ownerId, @PathVariable int petId) {
+		Optional<Owner> ownerOpt = owners.findById(ownerId);
+		if (ownerOpt.isEmpty()) {
+			return ResponseEntity.notFound().build();
+		}
+		Owner owner = ownerOpt.get();
+		Pet pet = owner.getPet(petId);
+		if (pet == null) {
+			return ResponseEntity.notFound().build();
+		}
+		owner.getPets().remove(pet);
+		owners.saveAndFlush(owner);
+		return ResponseEntity.noContent().build();
+	}
+
 }
