@@ -26,18 +26,36 @@ MODEL_NAME = os.getenv("MODEL_NAME", "openai:gpt-4.1-mini")
 # One-line description of each allowed file's responsibility, so the LLM can pick
 # sensibly without needing to read the actual source first.
 FILE_MENU = """
-Available target files (petclinic-app/src/main/java/.../api/):
-- OwnerRestController.java: owner search/get/create/update endpoints
-- PetRestController.java: pet get/create/update endpoints, nested under an owner
-- VisitRestController.java: visit get/create endpoints, nested under an owner+pet
-- PetTypeRestController.java: read-only pet type list endpoint
-- ApiExceptionHandler.java: shared 400/404 error handling for all of the above
+Available target files (petclinic-app/src/main/java/.../api/), with their class-level
+@RequestMapping prefix — a new endpoint's URL MUST start with that exact prefix,
+since Spring appends @GetMapping paths onto it and cannot escape it:
+
+- OwnerRestController.java (@RequestMapping("/api/owners")): owner search/get/create/update,
+  and any endpoint of the form /api/owners/{ownerId}/... that is NOT specific to one pet
+- PetRestController.java (@RequestMapping("/api/owners/{ownerId}/pets")): pet get/create/update
+- VisitRestController.java (@RequestMapping("/api/owners/{ownerId}/pets/{petId}/visits")):
+  visit get/create for ONE SPECIFIC pet — cannot host any route without a petId segment
+- PetTypeRestController.java (no class-level mapping, @GetMapping("/api/pettypes") directly
+  on the method): read-only pet type list endpoint
+- ApiExceptionHandler.java (@RestControllerAdvice, not a controller): shared 400/404 error
+  handling for all of the above — never a target_file for a new endpoint
+"""
+
+ROUTING_RULE = """
+Critical routing rule: choose target_files based on which file's class-level
+@RequestMapping prefix the new endpoint's URL actually falls under, as listed above.
+NEVER propose a relative-path escape trick like "/../../something" to add a route
+outside a class's mapped prefix — Spring does not support this and it silently
+produces a broken/incorrect route, not the intended URL. If no existing file's
+prefix is a real match for the new endpoint, propose a new file in new_files instead
+of forcing it into a file whose prefix doesn't fit.
 """
 
 SPEC_PROMPT = """You are a software architect turning a GitHub issue into a small, \
 bounded implementation plan for a Spring Boot REST API.
 
 {file_menu}
+{routing_rule}
 
 Rules:
 - Only pick target_files from the list above, by exact filename.
@@ -93,6 +111,7 @@ async def build_change_spec(owner: str, repo: str, issue_number: int) -> ChangeS
 
 	prompt = SPEC_PROMPT.format(
 		file_menu=FILE_MENU,
+		routing_rule=ROUTING_RULE,
 		issue_number=issue_number,
 		issue_title=issue_title,
 		issue_body=issue_body,
