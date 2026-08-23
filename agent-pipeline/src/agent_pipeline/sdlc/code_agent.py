@@ -45,8 +45,11 @@ Follow the exact coding style, formatting, and conventions already used in this 
 Do not make unrelated changes. Any @GetMapping/@PostMapping/etc. path must be a \
 normal relative path segment appended to this class's existing @RequestMapping — \
 never use ".." or any other relative-path escape trick, since Spring does not \
-resolve those and it will produce a broken route. Output ONLY the raw Java file \
-content — no markdown code fences, no explanation, no commentary before or after.
+resolve those and it will produce a broken route. Do NOT add any import that is not \
+actually used in the code you write — this project's build fails on unused imports. \
+If you introduce a helper DTO class, make it public, matching the visibility of the \
+surrounding controller class. Output ONLY the raw Java file content — no markdown \
+code fences, no explanation, no commentary before or after.
 """
 
 CODE_GEN_PROMPT_NEW = """You are a senior Java/Spring Boot engineer creating a new file.
