@@ -1,35 +1,46 @@
 # Flow 2: SDLC pipeline
 
-Turns a GitHub issue into a reviewed, tested, merged pull request — with a
-human approval gate at every step that matters. Uses GitHub's official hosted
-MCP server directly; no custom MCP server was built for this flow.
+Turns a GitHub issue into a reviewed, tested, merged pull request with a human approval gate at every step that matters.  
+Uses GitHub's official hosted MCP server directly; no custom MCP server was built for this flow.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    Issue[GitHub Issue] -->|GitHub MCP: issue_read| Spec[Spec Agent - LLM]
-    Spec --> Gate1{Human approval #1: plan}
-    Gate1 -->|approved| Code[Code Agent - LLM, single-shot]
-    Code --> Gate2{Human approval #2: diff review}
-    Gate2 -->|approved| Format[spring-javaformat:apply]
-    Format --> Gate3{Human approval #3: publish}
-    Gate3 -->|approved| Git[git branch/commit/push - local]
-    Git -->|GitHub MCP: create_pull_request| PR[Pull Request]
-    PR --> CI[GitHub Actions CI]
-    CI --> Review[Human review + merge]
+    subgraph github["GitHub"]
+        Issue(["Issue"])
+        PR(["Pull Request"])
+        CI["GitHub Actions CI"]
+    end
+
+    Issue -->|"MCP · issue_read"| Spec["Spec Agent<br/>LLM · structured output"]
+    Spec --> Gate1{"Approve plan?"}
+    Gate1 -->|yes| Code["Code Agent<br/>LLM · single-shot"]
+    Code --> Gate2{"Approve diff?"}
+    Gate2 -->|yes| Format["spring-javaformat:apply"]
+    Format --> Manual["Manual: compile, run,<br/>test the change locally"]
+    Manual --> Gate3{"Approve publish?"}
+    Gate3 -->|yes| Git["git branch · commit · push<br/>(local)"]
+    Git -->|"MCP · create_pull_request"| PR
+    PR --> CI
+    CI --> Review["Human review + merge"]
+
+    classDef ai fill:#eef2ff,stroke:#6366f1,color:#1e1b4b
+    classDef gate fill:#fffbeb,stroke:#d97706,color:#78350f
+    classDef gh fill:#f8fafc,stroke:#475569,color:#0f172a
+    classDef local fill:#f0fdf4,stroke:#22c55e,color:#14532d
+
+    class Spec,Code,Format ai
+    class Gate1,Gate2,Gate3,Review gate
+    class Issue,PR,CI gh
+    class Git,Manual local
 ```
 
 ## Why it's deliberately bounded, not open-ended
 
-The Code Agent never explores the repository. The Spec Agent picks from a
-fixed, known menu of 9 files — 5 REST controllers + 4 core domain entities —
-and the Code Agent only ever sees the one file it's told to edit, generating
-its complete replacement in a single LLM call. This was a conscious tradeoff
-against a fully autonomous "let the agent roam the codebase" design, made for
-cost and predictability: it keeps every change auditable via diff, and keeps
-the model requirement modest (`gpt-4.1-mini` throughout — no frontier model
-needed for any stage).
+The Code Agent never explores the repository. The Spec Agent picks from a fixed, known menu of 9 files — 5 REST controllers + 4 core domain entities — and the Code Agent only ever sees the files it's told to edit, generating its complete replacement in a single LLM call. 
+
+This was a conscious tradeoff against a fully autonomous "let the agent roam the codebase" design, made for cost and predictability: it keeps every change auditable via diff, and keeps the model requirement modest (`gpt-4.1-mini` throughout — no frontier model needed for any stage).
 
 ## The three approval gates
 
@@ -41,15 +52,15 @@ needed for any stage).
 
 ## Where LLM / MCP / plain code are each used, and why
 
-- **LLM** — exactly twice, both single-shot, no tool-calling loop: issue text
+- **LLM:** Exactly twice, both single-shot, no tool-calling loop: issue text
   → structured spec (`spec_agent.py`), and spec + current file → new file
   content (`code_agent.py`). Judgment calls only.
-- **MCP** — exactly twice, both against GitHub: `issue_read` and
+- **MCP:** Exactly twice, both against GitHub: `issue_read` and
   `create_pull_request` (`github_client.py`, `pr_ops.py`). Used only where an
   external system's API is the only way to get the data or take the action —
   everything else (git, Maven) stayed as plain deterministic scripts, since
   there was no decision-making for an MCP tool to add value to.
-- **Plain Python** — budget validation (`schemas.py`), diff generation,
+- **Plain Python:** Budget validation (`schemas.py`), diff generation,
   file I/O, `git`/`mvn` subprocess calls (`git_ops.py`, and the formatting
   step in `run_sdlc.py`).
 
@@ -96,17 +107,27 @@ bad file by hand.
 ## Running it
 
 ```bash
-cd petclinic-app && ./mvnw spring-boot:run   # only needed for the optional
-                                               # manual `mvn compile` check —
-                                               # the pipeline itself doesn't
-                                               # need it running
+cd agent-pipeline                            # Same project, same Python environment —
+                                              # if you already ran the setup above for
+                                              # the conversational agent, no need to
+                                              # recreate the venv or reinstall deps
 
-cd agent-pipeline
-pip install -e .
-cp .env.example .env   # fill in OPENAI_API_KEY, GITHUB_PERSONAL_ACCESS_TOKEN
+cp .env.example .env                         # Skip if you already have a .env from
+                                              # Flow 1 — just add GITHUB_PERSONAL_ACCESS_TOKEN
+                                              # to it (fine-grained PAT: Issues Read-only,
+                                              # Pull requests Read/write, Contents Read-only)
 
 python -m agent_pipeline.sdlc.run_sdlc \
-  --owner <your-github-username> --repo <repo-name> --issue <issue-number>
+  --owner <you> --repo <repo> --issue <n>    # <you> = your GitHub username/org,
+                                              # <repo> = this repo's name,
+                                              # <n> = a real issue number, scoped to one
+                                              # of the 9 files in schemas.py's
+                                              # ALLOWED_TARGET_FILES
+
+                                              # Runs through: fetch issue → propose spec
+                                              # (approve/reject) → generate code → show
+                                              # diff (approve/reject) → auto-format →
+                                              # branch/commit/push/open PR (approve/reject)
 ```
 
 Create a GitHub issue scoped to one of the 9 allowed files first (see
